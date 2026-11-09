@@ -15,9 +15,8 @@
   </div>
   <div class="title">Planta piloto P-85 · <span id="viewTitle">Reportes</span></div>
   <div class="status">
-    <span class="conn" id="conn"><i></i><span>Sin conexión</span></span>
+    <span class="conn" id="conn"><i></i><span>Conectando...</span></span>
     <span class="clock" id="clock">--/--/---- --:--:--</span>
-    <button class="btn small" id="btnCfg" title="Configurar conexión">CONEXIÓN</button>
   </div>
 </header>
 
@@ -117,19 +116,6 @@
   <button data-view="historial">HISTORIAL</button>
 </nav>
 
-<!-- dialogo de conexion -->
-<dialog id="cfg">
-  <form method="dialog">
-    <h3>CONEXIÓN A SUPABASE</h3>
-    <label>URL del proyecto <input id="cUrl" placeholder="https://xxxx.supabase.co" required></label>
-    <label>Clave anónima (anon / publishable) <textarea id="cKey" rows="3" placeholder="eyJhbGciOi..."></textarea></label>
-    <p class="hint">Usa solo la clave <b>anon</b>: es pública y RLS solo deja leer. Nunca pegues la <b>service_role</b>. Se guarda únicamente en este navegador.</p>
-    <div class="btnrow">
-      <button class="btn blue" value="ok">CONECTAR</button>
-      <button class="btn ghost" value="cancel" formnovalidate>CANCELAR</button>
-    </div>
-  </form>
-</dialog>
 
 <!-- vista de impresion -->
 <div id="print"></div>

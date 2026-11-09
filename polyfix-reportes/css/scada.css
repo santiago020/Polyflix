@@ -103,10 +103,6 @@ code{background:#fff;padding:1px 4px;border:1px solid #ccc}
 .bottomnav button{background:var(--btn2);border:1px solid #6c6e72;font-weight:bold;letter-spacing:.6px;font-size:14px;padding:16px 4px;cursor:pointer;color:var(--txt);font-family:inherit}
 .bottomnav button.on{background:var(--navy);color:#fff}
 
-dialog{border:2px solid var(--navy);border-radius:6px;padding:0;width:min(520px,94vw);background:var(--panel)}
-dialog form{padding:16px}
-dialog h3{margin:0 0 6px;color:var(--navy)}
-dialog::backdrop{background:rgba(15,26,69,.45)}
 
 #print{display:none}
 
@@ -117,7 +113,7 @@ dialog::backdrop{background:rgba(15,26,69,.45)}
 @media print{
   @page{size:letter;margin:16mm}
   body{background:#fff;padding:0}
-  .topbar,main,.bottomnav,dialog{display:none!important}
+  .topbar,main,.bottomnav{display:none!important}
   #print{display:block;font-family:"Times New Roman",serif;color:#000;font-size:11pt}
   #print .rep{break-after:page}
   #print .rep:last-child{break-after:auto}

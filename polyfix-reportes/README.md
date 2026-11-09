@@ -20,8 +20,7 @@ La página usa la API REST de Supabase con la **clave anónima**. RLS en Supabas
 
 ## Configuración
 1. En Supabase: *Project Settings → API*, copia la **Project URL** y la clave **anon / publishable**.
-2. Opción A: pégalas en `js/config.js`.
-   Opción B: deja `js/config.js` vacío y pulsa **CONEXIÓN** en la página (se guarda solo en ese navegador).
+2. Pégalas en `js/config.js` (usa la **Publishable key**, nunca la Secret key).
 3. Las políticas RLS deben permitir `select` al rol `anon` en `reportes` y `proceso`:
 ```sql
 create policy "leer reportes" on public.reportes for select to anon using (true);

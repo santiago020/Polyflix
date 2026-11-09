@@ -14,8 +14,8 @@ const LS = {
 
 /* ---------- conexion ---------- */
 const conn = {
-  url: LS.get('pf_url') || CFG.SUPABASE_URL || '',
-  key: LS.get('pf_key') || CFG.SUPABASE_ANON_KEY || ''
+  url: CFG.SUPABASE_URL || '',
+  key: CFG.SUPABASE_ANON_KEY || ''
 };
 
 // claves nuevas (sb_publishable_...) solo van en apikey; las legacy (JWT anon) tambien en Authorization
@@ -103,8 +103,8 @@ let reportes = [], selId = null, proceso = [];
 async function cargarReportes(){
   const tipo = $('#fTipo').value, d = $('#fDesde').value, h = $('#fHasta').value;
   if(!conn.key){
-    reportes = []; setConn('err', 'Sin clave');
-    $('#dBody').innerHTML = '<p class="hint" style="color:var(--red)">Falta la clave de Supabase. Pulsa CONEXIÓN y pega la clave anon.</p>';
+    reportes = []; setConn('err', 'Sin configurar');
+    $('#dBody').innerHTML = '<p class="hint" style="color:var(--red)">El servicio de datos no está configurado.</p>';
     pintarTabla(); pintarKPI(); return;
   }
   try{
@@ -116,11 +116,11 @@ async function cargarReportes(){
       if(h) and.push(`fecha.lte.${isoBogota(h, true)}`);
       if(and.length) p.append('and', `(${and.join(',')})`);
       reportes = await sbTodo(CFG.TABLA_REPORTES || 'reportes', p.toString());
-      setConn('ok', 'Supabase en línea');
+      setConn('ok', 'En línea');
     }
   }catch(e){
-    console.error(e); reportes = []; setConn('err', 'Error de conexión');
-    $('#dBody').innerHTML = `<p class="hint" style="color:var(--red)">No se pudo leer Supabase: ${esc(e.message).slice(0,200)}</p>`;
+    console.error(e); reportes = []; setConn('err', 'Sin conexión');
+    $('#dBody').innerHTML = '<p class="hint" style="color:var(--red)">No fue posible conectar con el servidor de datos. Verifica tu conexión a internet e intenta de nuevo con ACTUALIZAR.</p>';
   }
   pintarTabla(); pintarKPI();
 }
@@ -211,7 +211,7 @@ $('#fTipo').onchange = cargarReportes;
 async function cargarProceso(){
   const horas = +$('#hRango').value;
   try{
-    if(!conn.key){ proceso = []; setConn('err', 'Sin clave'); }
+    if(!conn.key){ proceso = []; setConn('err', 'Sin configurar'); }
     else{
       const desde = new Date(Date.now() - horas * 3600e3).toISOString();
       $('#hBuscar').disabled = $('#hCSV').disabled = true;
@@ -280,19 +280,9 @@ document.querySelectorAll('.bottomnav button').forEach(b => b.onclick = () => {
   if(b.dataset.view === 'historial') cargarProceso();
 });
 
-/* ---------- dialogo de conexion ---------- */
-$('#btnCfg').onclick = () => { $('#cUrl').value = conn.url; $('#cKey').value = conn.key; $('#cfg').showModal(); };
-$('#cfg').addEventListener('close', () => {
-  const v = $('#cfg').returnValue;
-  if(v === 'ok' && $('#cKey').value.trim()){
-    conn.url = $('#cUrl').value.trim(); conn.key = $('#cKey').value.trim();
-    LS.set('pf_url', conn.url); LS.set('pf_key', conn.key);
-  }else return;
-  cargarReportes(); if(!$('#view-historial').hidden) cargarProceso();
-});
-
 /* ---------- inicio ---------- */
 const v0 = LS.get('pf_view'); if(v0 === 'historial'){ const b = document.querySelector(`.bottomnav button[data-view="${v0}"]`); if(b) b.click(); }
 cargarReportes().then(() => { if(reportes[0]) seleccionar(reportes[0].id); });
-if(!conn.key) $('#btnCfg').click();
+// refresco automatico de la lista cada 60 s (sin perder el reporte seleccionado)
+setInterval(() => { if(!$('#view-reportes').hidden && !document.querySelector('.chk:checked')) cargarReportes().then(() => { if(selId) seleccionar(selId); }); }, 60000);
 })();

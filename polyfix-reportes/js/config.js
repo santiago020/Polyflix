@@ -1,5 +1,5 @@
 // Conexión a Supabase.
-// Puedes dejar la clave vacía y pegarla desde el botón CONEXIÓN de la página (se guarda solo en tu navegador).
+// La clave se configura solo aquí.
 // SOLO la Publishable key (o la "anon" legacy), pública y protegida por RLS. NUNCA la Secret key ni la "service_role".
 window.POLYFIX_CONFIG = {
   SUPABASE_URL: "https://zcunzdlswakyfnnowfwc.supabase.co",
