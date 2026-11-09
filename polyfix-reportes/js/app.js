@@ -15,20 +15,40 @@ const LS = {
 /* ---------- conexion ---------- */
 const conn = {
   url: LS.get('pf_url') || CFG.SUPABASE_URL || '',
-  key: LS.get('pf_key') || CFG.SUPABASE_ANON_KEY || '',
-  demo: false
+  key: LS.get('pf_key') || CFG.SUPABASE_ANON_KEY || ''
 };
-conn.demo = !conn.key || LS.get('pf_demo') === '1';
 
+// claves nuevas (sb_publishable_...) solo van en apikey; las legacy (JWT anon) tambien en Authorization
+const cabeceras = () => conn.key.startsWith('eyJ') ? { apikey: conn.key, Authorization: `Bearer ${conn.key}` } : { apikey: conn.key };
 async function sb(tabla, params){
   const u = `${conn.url.replace(/\/$/,'')}/rest/v1/${tabla}?${params}`;
-  const r = await fetch(u, { headers: { apikey: conn.key, Authorization: `Bearer ${conn.key}` } });
+  const r = await fetch(u, { headers: cabeceras() });
   if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
+/* Supabase entrega maximo 1000 filas por peticion: se pide el total y se trae por paginas (6 en paralelo) */
+async function sbTodo(tabla, params, progreso){
+  const base = `${conn.url.replace(/\/$/,'')}/rest/v1/${tabla}?${params}`, PAG = 1000;
+  const hdr = cabeceras();
+  const r = await fetch(`${base}&limit=${PAG}&offset=0`, { headers: { ...hdr, Prefer: 'count=exact' } });
+  if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  const filas = await r.json();
+  const total = +((r.headers.get('content-range') || '').split('/')[1]) || filas.length;
+  if(progreso) progreso(filas.length, total);
+  const offs = []; for(let o = PAG; o < total; o += PAG) offs.push(o);
+  const paginas = new Array(offs.length);
+  for(let i = 0; i < offs.length; i += 6){
+    await Promise.all(offs.slice(i, i + 6).map(async (o, j) => {
+      const q = await fetch(`${base}&limit=${PAG}&offset=${o}`, { headers: hdr });
+      if(!q.ok) throw new Error(`${q.status} ${await q.text()}`);
+      paginas[i + j] = await q.json();
+    }));
+    if(progreso) progreso(Math.min(total, PAG * (i + 7)), total);
+  }
+  return filas.concat(...paginas);
+}
 function setConn(state, txt){
   const c = $('#conn'); c.className = 'conn ' + state; c.querySelector('span').textContent = txt;
-  $('#demoBanner').hidden = state !== 'demo';
 }
 
 /* ---------- fechas ---------- */
@@ -77,52 +97,25 @@ function resumen(r){
   return `SP ${valor('sp',pick(c,['sp']))} cm · nivel ${valor('nivel_min',mn)}–${valor('nivel_max',mx)} cm`;
 }
 
-/* ---------- datos de demostracion (mismas fechas que los reportes reales del 5-nov) ---------- */
-function demoReportes(){
-  const sup = (id, f, sp, mn, mx, pr, vel, n, vol, bot) => ({id, fecha:f, tipo:'supervisor', contenido:{periodo:'ultima hora', sp, nivel_min:mn, nivel_max:mx, nivel_prom:pr, vel_prom:vel, muestras:n, vol_envasado:vol, botellas:bot}});
-  const ger = (id, f, bot, vend, inv, mp, ing, tm, cm, disp, prod, cu, mar) => ({id, fecha:f, tipo:'gerencia', contenido:{botellas:bot, vendidas:vend, inventario:inv, costo_mp:mp, ingresos:ing, t_muerto_min:tm, costo_muerto:cm, kpi_disp:disp, kpi_prod_h:prod, kpi_costo_unit:cu, margen:mar}});
-  return [
-    sup(159,'2026-11-05 15:12:21',7,0,7.02,4.81,598,720,36.4,36),
-    sup(158,'2026-11-05 15:10:36',7,0,6.98,4.77,592,720,36.0,36),
-    ger(157,'2026-11-05 15:09:00',36,0,36,454248,0,6.5,9750,88.4,40.1,12888,54.7),
-    ger(156,'2026-11-05 14:50:44',0,0,0,3033,0,1.2,1800,0,0,0,54.7),
-    ger(155,'2026-11-05 14:31:32',92,40,52,1159861,1120000,12.0,18000,91.2,42.6,12803,54.7),
-    sup(154,'2026-11-05 14:31:27',7,7,7.14,7.03,879,720,92.3,92),
-    sup(153,'2026-11-05 14:31:22',7,7,7.16,7.04,880,720,92.0,92)
-  ];
-}
-function demoProceso(horas){
-  const out = [], n = Math.min(720, horas * 60), t0 = Date.now() - horas * 3600e3;
-  let h = 0, vol = 0;
-  for(let i = 0; i < n; i++){
-    const t = new Date(t0 + i * horas * 3600e3 / n);
-    const fase = (i / n) * 4 % 1, marcha = fase < 0.82, sp = (i / n) < 0.5 ? 6 : 7;
-    h += marcha ? (sp - h) * 0.08 + Math.sin(i / 3) * 0.02 : -h * 0.05;
-    h = Math.max(0, h); vol += marcha ? 0.08 * Math.sqrt(h) : 0;
-    out.push({fecha:t.toISOString(), nivel:+h.toFixed(2), sp, vel_variador: marcha && h >= 5 ? Math.round(125 * h) : 0, sentido:0, marcha: marcha ? 1 : 0, vol_envasado:+vol.toFixed(2), botellas:Math.floor(vol)});
-  }
-  return out;
-}
-
 /* ---------- estado ---------- */
 let reportes = [], selId = null, proceso = [];
 
 async function cargarReportes(){
   const tipo = $('#fTipo').value, d = $('#fDesde').value, h = $('#fHasta').value;
+  if(!conn.key){
+    reportes = []; setConn('err', 'Sin clave');
+    $('#dBody').innerHTML = '<p class="hint" style="color:var(--red)">Falta la clave de Supabase. Pulsa CONEXIÓN y pega la clave anon.</p>';
+    pintarTabla(); pintarKPI(); return;
+  }
   try{
-    if(conn.demo){
-      reportes = demoReportes().filter(r => (!tipo || r.tipo === tipo)
-        && (!d || parseFecha(r.fecha) >= new Date(isoBogota(d)))
-        && (!h || parseFecha(r.fecha) <= new Date(isoBogota(h, true))));
-      setConn('demo', 'Modo demo');
-    }else{
-      const p = new URLSearchParams({ select:'*', order:'fecha.desc', limit:'1000' });
+    {
+      const p = new URLSearchParams({ select:'*', order:'fecha.desc,id.desc' });
       if(tipo) p.append('tipo', `eq.${tipo}`);
       const and = [];
       if(d) and.push(`fecha.gte.${isoBogota(d)}`);
       if(h) and.push(`fecha.lte.${isoBogota(h, true)}`);
       if(and.length) p.append('and', `(${and.join(',')})`);
-      reportes = await sb(CFG.TABLA_REPORTES || 'reportes', p.toString());
+      reportes = await sbTodo(CFG.TABLA_REPORTES || 'reportes', p.toString());
       setConn('ok', 'Supabase en línea');
     }
   }catch(e){
@@ -218,13 +211,16 @@ $('#fTipo').onchange = cargarReportes;
 async function cargarProceso(){
   const horas = +$('#hRango').value;
   try{
-    if(conn.demo) proceso = demoProceso(horas);
+    if(!conn.key){ proceso = []; setConn('err', 'Sin clave'); }
     else{
       const desde = new Date(Date.now() - horas * 3600e3).toISOString();
-      proceso = await sb(CFG.TABLA_PROCESO || 'proceso', new URLSearchParams({ select:'*', order:'fecha.asc', limit:'5000', fecha:`gte.${desde}` }).toString());
+      $('#hBuscar').disabled = $('#hCSV').disabled = true;
+      proceso = await sbTodo(CFG.TABLA_PROCESO || 'proceso', new URLSearchParams({ select:'*', order:'fecha.asc,id.asc', fecha:`gte.${desde}` }).toString(),
+        (n, t) => { $('#hCount').textContent = `Cargando ${n.toLocaleString('es-CO')} de ${t.toLocaleString('es-CO')} muestras...`; });
     }
   }catch(e){ console.error(e); proceso = []; setConn('err', 'Error de conexión'); }
-  $('#hCount').textContent = `${proceso.length} muestras`;
+  $('#hBuscar').disabled = $('#hCSV').disabled = false;
+  $('#hCount').textContent = `${proceso.length.toLocaleString('es-CO')} muestras`;
   const u = proceso[proceso.length - 1] || {};
   const put = (id, k, v) => { $('#' + id).textContent = v == null ? '--' : valor(k, Number(v)); };
   put('i_nivel','nivel',u.nivel); put('i_sp','sp',u.sp); put('i_vel','vel_variador',u.vel_variador); put('i_vol','vol_envasado',u.vol_envasado); put('i_bot','botellas',u.botellas);
@@ -244,10 +240,23 @@ function dibujar(){
   const t0 = parseFecha(proceso[0].fecha).getTime(), t1 = parseFecha(proceso[proceso.length - 1].fecha).getTime() || t0 + 1;
   const X = f => L + (parseFecha(f).getTime() - t0) / (t1 - t0 || 1) * w;
   g.textAlign = 'center';
-  for(let i = 0; i <= 6; i++){ const t = new Date(t0 + i / 6 * (t1 - t0)); g.fillText(fmtHora(t), L + i / 6 * w, T + h + 18); }
+  const largo = t1 - t0 > 26 * 3600e3;
+  const fmtDia = d => new Intl.DateTimeFormat('es-CO',{timeZone:TZ,day:'2-digit',month:'2-digit'}).format(d);
+  for(let i = 0; i <= 6; i++){ const t = new Date(t0 + i / 6 * (t1 - t0)); g.fillText(largo ? `${fmtDia(t)} ${fmtHora(t)}` : fmtHora(t), L + i / 6 * w, T + h + 18); }
+  // con muchas muestras se dibuja min y max de cada columna de pixeles para no perder picos
+  const n = proceso.length, cols = Math.max(1, Math.floor(w)), datos = [];
+  if(n <= cols * 2) datos.push(...proceso);
+  else{
+    const tam = n / cols;
+    for(let c = 0; c < cols; c++){
+      const seg = proceso.slice(Math.floor(c * tam), Math.floor((c + 1) * tam)); if(!seg.length) continue;
+      let lo = seg[0], hi = seg[0]; for(const p of seg){ if(+p.nivel < +lo.nivel) lo = p; if(+p.nivel > +hi.nivel) hi = p; }
+      const a1 = parseFecha(lo.fecha) <= parseFecha(hi.fecha) ? [lo, hi] : [hi, lo]; datos.push(a1[0]); if(a1[1] !== a1[0]) datos.push(a1[1]);
+    }
+  }
   const linea = (k, col, max, step) => {
     g.strokeStyle = col; g.lineWidth = 1.8; g.beginPath();
-    proceso.forEach((p, i) => { const x = X(p.fecha), y = T + h - Math.max(0, Math.min(1, (+p[k] || 0) / max)) * h; if(i && step){ g.lineTo(x, g._ly); } i ? g.lineTo(x, y) : g.moveTo(x, y); g._ly = y; });
+    datos.forEach((p, i) => { const x = X(p.fecha), y = T + h - Math.max(0, Math.min(1, (+p[k] || 0) / max)) * h; if(i && step){ g.lineTo(x, g._ly); } i ? g.lineTo(x, y) : g.moveTo(x, y); g._ly = y; });
     g.stroke();
   };
   linea('vel_variador', '#2fbf3a', 1500); linea('sp', '#d7262b', 12, true); linea('nivel', '#2eb7e6', 12);
@@ -262,7 +271,7 @@ $('#hCSV').onclick = () => {
 window.addEventListener('resize', () => { if(!$('#view-historial').hidden) dibujar(); });
 
 /* ---------- navegacion inferior ---------- */
-const TITULOS = { reportes:'Reportes', historial:'Historial', acerca:'Acerca' };
+const TITULOS = { reportes:'Reportes', historial:'Historial' };
 document.querySelectorAll('.bottomnav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.bottomnav button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.view').forEach(v => { v.hidden = v.id !== 'view-' + b.dataset.view; });
@@ -272,18 +281,18 @@ document.querySelectorAll('.bottomnav button').forEach(b => b.onclick = () => {
 });
 
 /* ---------- dialogo de conexion ---------- */
-$('#btnCfg').onclick = () => { $('#cUrl').value = conn.url; $('#cKey').value = conn.demo ? '' : conn.key; $('#cfg').showModal(); };
+$('#btnCfg').onclick = () => { $('#cUrl').value = conn.url; $('#cKey').value = conn.key; $('#cfg').showModal(); };
 $('#cfg').addEventListener('close', () => {
   const v = $('#cfg').returnValue;
   if(v === 'ok' && $('#cKey').value.trim()){
-    conn.url = $('#cUrl').value.trim(); conn.key = $('#cKey').value.trim(); conn.demo = false;
-    LS.set('pf_url', conn.url); LS.set('pf_key', conn.key); LS.del('pf_demo');
-  }else if(v === 'demo'){ conn.demo = true; LS.set('pf_demo', '1'); }
-  else return;
+    conn.url = $('#cUrl').value.trim(); conn.key = $('#cKey').value.trim();
+    LS.set('pf_url', conn.url); LS.set('pf_key', conn.key);
+  }else return;
   cargarReportes(); if(!$('#view-historial').hidden) cargarProceso();
 });
 
 /* ---------- inicio ---------- */
-const v0 = LS.get('pf_view'); if(v0 && v0 !== 'reportes'){ const b = document.querySelector(`.bottomnav button[data-view="${v0}"]`); if(b) b.click(); }
+const v0 = LS.get('pf_view'); if(v0 === 'historial'){ const b = document.querySelector(`.bottomnav button[data-view="${v0}"]`); if(b) b.click(); }
 cargarReportes().then(() => { if(reportes[0]) seleccionar(reportes[0].id); });
+if(!conn.key) $('#btnCfg').click();
 })();

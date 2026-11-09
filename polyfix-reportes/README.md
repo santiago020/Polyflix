@@ -9,7 +9,6 @@ Interfaz web tipo SCADA para **consultar y descargar los reportes** de la planta
 - **KPI:** disponibilidad, producción, costo unitario y margen del último reporte de gerencia.
 - **Descargas:** Excel (CSV con `;` y coma decimal), JSON y PDF (vista de impresión), ya sea de todos los reportes, de los marcados o de uno solo.
 - **Historial:** tendencia de nivel, setpoint y velocidad desde la tabla `proceso` (1 h a 30 días), con descarga en CSV.
-- **Modo demo:** si no hay clave configurada, muestra datos de ejemplo.
 
 ![Historial](img/captura_historial.png)
 

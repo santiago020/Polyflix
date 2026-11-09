@@ -21,9 +21,7 @@ body{min-height:100vh;padding-bottom:64px}
 .conn i{width:11px;height:11px;border-radius:50%;background:#888;border:1px solid #000}
 .conn.ok i{background:#3fd94f;box-shadow:0 0 6px #3fd94f}
 .conn.err i{background:var(--red)}
-.conn.demo i{background:#e5b42b}
 .clock{background:#fff;color:var(--navy);padding:4px 8px}
-.demo-banner{background:#e5b42b;color:#2a2000;padding:6px 16px;font-size:13px}
 
 main{padding:14px;max-width:1500px;margin:auto}
 
@@ -101,7 +99,7 @@ canvas{width:100%;background:#fff;border:1px solid var(--line)}
 code{background:#fff;padding:1px 4px;border:1px solid #ccc}
 
 /* navegacion inferior como en el HMI */
-.bottomnav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);background:#5c5f63;border-top:3px solid #3a3c3f;z-index:5}
+.bottomnav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(2,1fr);background:#5c5f63;border-top:3px solid #3a3c3f;z-index:5}
 .bottomnav button{background:var(--btn2);border:1px solid #6c6e72;font-weight:bold;letter-spacing:.6px;font-size:14px;padding:16px 4px;cursor:pointer;color:var(--txt);font-family:inherit}
 .bottomnav button.on{background:var(--navy);color:#fff}
 
@@ -119,7 +117,7 @@ dialog::backdrop{background:rgba(15,26,69,.45)}
 @media print{
   @page{size:letter;margin:16mm}
   body{background:#fff;padding:0}
-  .topbar,.demo-banner,main,.bottomnav,dialog{display:none!important}
+  .topbar,main,.bottomnav,dialog{display:none!important}
   #print{display:block;font-family:"Times New Roman",serif;color:#000;font-size:11pt}
   #print .rep{break-after:page}
   #print .rep:last-child{break-after:auto}
