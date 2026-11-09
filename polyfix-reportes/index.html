@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POLYFIX · Reportes en la nube</title>
+<link rel="icon" href="img/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/scada.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <img src="img/logo.svg" alt="" class="logo">
+    <div class="brandtxt"><b>POLYFIX</b><small>ADHESIVOS PARA MADERA</small></div>
+  </div>
+  <div class="title">Planta piloto P-85 · <span id="viewTitle">Reportes</span></div>
+  <div class="status">
+    <span class="conn" id="conn"><i></i><span>Sin conexión</span></span>
+    <span class="clock" id="clock">--/--/---- --:--:--</span>
+    <button class="btn small" id="btnCfg" title="Configurar conexión">CONEXIÓN</button>
+  </div>
+</header>
+
+<div class="demo-banner" id="demoBanner" hidden>MODO DEMOSTRACIÓN · datos de ejemplo. Pulsa <b>CONEXIÓN</b> y pega la clave anónima de Supabase para ver los reportes reales.</div>
+
+<main>
+  <!-- ================= REPORTES ================= -->
+  <section class="view" id="view-reportes">
+    <div class="kpis" id="kpis">
+      <div class="kpi"><h4>KPI · DISPONIBILIDAD</h4><div class="v"><span id="k_disp">--</span><u>%</u></div><div class="bar"><b id="kb_disp"></b></div></div>
+      <div class="kpi"><h4>KPI · PRODUCCIÓN</h4><div class="v"><span id="k_prod">--</span><u>bot/h</u></div><div class="bar"><b id="kb_prod"></b></div></div>
+      <div class="kpi"><h4>KPI · COSTO UNITARIO</h4><div class="v"><span id="k_cu">--</span><u>$/bot</u></div><div class="bar"><b id="kb_cu"></b></div></div>
+      <div class="kpi"><h4>KPI · MARGEN BRUTO</h4><div class="v"><span id="k_mar">--</span><u>%</u></div><div class="bar"><b id="kb_mar"></b></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>FILTROS</h3>
+        <label>Tipo de reporte
+          <select id="fTipo"><option value="">Todos</option><option value="supervisor">Supervisor</option><option value="gerencia">Gerencia</option></select>
+        </label>
+        <label>Desde <input type="date" id="fDesde"></label>
+        <label>Hasta <input type="date" id="fHasta"></label>
+        <div class="btnrow">
+          <button class="btn" id="btnBuscar">ACTUALIZAR</button>
+          <button class="btn ghost" id="btnLimpiar">LIMPIAR</button>
+        </div>
+        <h3 class="mt">DESCARGAS</h3>
+        <p class="hint">Se descargan los reportes que aparecen en la lista (o solo los marcados).</p>
+        <div class="btnrow col">
+          <button class="btn blue" id="dlCSV">DESCARGAR EXCEL (CSV)</button>
+          <button class="btn blue" id="dlJSON">DESCARGAR JSON</button>
+          <button class="btn blue" id="dlPDF">IMPRIMIR / PDF</button>
+        </div>
+        <div class="count" id="count">0 reportes</div>
+      </div>
+
+      <div class="panel">
+        <h3>REPORTES EN LA NUBE <span class="tag">Supabase · tabla reportes</span></h3>
+        <div class="tablewrap">
+          <table class="list" id="tabla">
+            <thead><tr><th><input type="checkbox" id="chkAll"></th><th>ID</th><th>Fecha (Bogotá)</th><th>Tipo</th><th>Resumen</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="empty" id="empty" hidden>No hay reportes con esos filtros.</div>
+        </div>
+      </div>
+
+      <div class="panel" id="detalle">
+        <h3>DETALLE DEL REPORTE <span class="tag" id="dId"></span></h3>
+        <div id="dBody" class="dbody"><p class="hint">Selecciona un reporte de la lista.</p></div>
+        <div class="btnrow" id="dBtns" hidden>
+          <button class="btn blue" id="d1PDF">PDF</button>
+          <button class="btn" id="d1CSV">CSV</button>
+          <button class="btn" id="d1JSON">JSON</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORIAL ================= -->
+  <section class="view" id="view-historial" hidden>
+    <div class="grid g2">
+      <div class="panel">
+        <h3>RANGO</h3>
+        <label>Últimas
+          <select id="hRango">
+            <option value="1">1 hora</option><option value="6">6 horas</option><option value="24" selected>24 horas</option><option value="168">7 días</option><option value="720">30 días</option>
+          </select>
+        </label>
+        <div class="btnrow col">
+          <button class="btn" id="hBuscar">ACTUALIZAR</button>
+          <button class="btn blue" id="hCSV">DESCARGAR EXCEL (CSV)</button>
+        </div>
+        <h3 class="mt">ESTADO ACTUAL</h3>
+        <div class="leds">
+          <div class="led" id="L_marcha"><i></i>En marcha</div>
+          <div class="led" id="L_sent"><i></i>Antihorario</div>
+        </div>
+        <div class="ind"><span>Nivel TK-2</span><output id="i_nivel">--</output><u>cm</u></div>
+        <div class="ind"><span>Setpoint</span><output id="i_sp">--</output><u>cm</u></div>
+        <div class="ind"><span>Velocidad M-01</span><output id="i_vel">--</output><u>rpm</u></div>
+        <div class="ind"><span>Envasado</span><output id="i_vol">--</output><u>L</u></div>
+        <div class="ind"><span>Botellas</span><output id="i_bot">--</output><u>u</u></div>
+        <div class="count" id="hCount">0 muestras</div>
+      </div>
+      <div class="panel">
+        <h3>TENDENCIA DEL PROCESO <span class="legend"><i class="c1"></i>Nivel TK-2 (cm) <i class="c2"></i>Setpoint (cm) <i class="c3"></i>Velocidad (rpm)</span></h3>
+        <canvas id="trend" height="330"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ACERCA ================= -->
+  <section class="view" id="view-acerca" hidden>
+    <div class="panel narrow">
+      <h3>CÓMO FUNCIONA</h3>
+      <p>Cuando el supervisor o la gerencia pulsan <b>REPORTE EN LA NUBE</b> en el HMI, el PLC levanta una bandera en el DB4 "Nube". Node-RED la detecta, arma el reporte, lo guarda en MySQL (local) y en Supabase (nube) y devuelve la bandera a 0. Esta página lee la tabla <code>reportes</code> de Supabase con la clave anónima (solo lectura por RLS) y permite filtrarlos y descargarlos.</p>
+      <div class="flow">
+        <span>HMI</span><em>→</em><span>PLC 1516 · DB4</span><em>→</em><span>Node-RED</span><em>→</em><span>MySQL + Supabase</span><em>→</em><span class="on">Esta página</span>
+      </div>
+      <p class="hint">Universidad Militar Nueva Granada · Ingeniería Mecatrónica · Laboratorio de Automatización Industrial 2026-2</p>
+    </div>
+  </section>
+</main>
+
+<nav class="bottomnav">
+  <button data-view="reportes" class="on">REPORTES</button>
+  <button data-view="historial">HISTORIAL</button>
+  <button data-view="acerca">ACERCA</button>
+</nav>
+
+<!-- dialogo de conexion -->
+<dialog id="cfg">
+  <form method="dialog">
+    <h3>CONEXIÓN A SUPABASE</h3>
+    <label>URL del proyecto <input id="cUrl" placeholder="https://xxxx.supabase.co" required></label>
+    <label>Clave anónima (anon / publishable) <textarea id="cKey" rows="3" placeholder="eyJhbGciOi..."></textarea></label>
+    <p class="hint">Usa solo la clave <b>anon</b>: es pública y RLS solo deja leer. Nunca pegues la <b>service_role</b>. Se guarda únicamente en este navegador.</p>
+    <div class="btnrow">
+      <button class="btn blue" value="ok">CONECTAR</button>
+      <button class="btn ghost" value="demo" formnovalidate>MODO DEMO</button>
+      <button class="btn ghost" value="cancel" formnovalidate>CANCELAR</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- vista de impresion -->
+<div id="print"></div>
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
